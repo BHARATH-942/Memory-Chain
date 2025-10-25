@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Memory - MemoryChain</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-teal: #1a4d4d;
+            --warm-gold: #d4af37;
+            --soft-ivory: #f8f6f0;
+            --charcoal: #2c2c2c;
+            --off-white: #fafafa;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, var(--off-white) 0%, var(--soft-ivory) 100%);
+            min-height: 100vh;
+        }
+        
+        .upload-zone {
+            border: 2px dashed #d1d5db;
+            transition: all 0.3s ease;
+        }
+        
+        .upload-zone.dragover {
+            border-color: var(--primary-teal);
+            background-color: rgba(26, 77, 77, 0.05);
+        }
+        
+        .upload-zone:hover {
+            border-color: var(--warm-gold);
+            background-color: rgba(212, 175, 55, 0.05);
+        }
+        
+        .progress-bar {
+            background: linear-gradient(90deg, var(--primary-teal) 0%, var(--warm-gold) 100%);
+            transition: width 0.3s ease;
+        }
+        
+        .encryption-animation {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .family-member-card {
+            transition: all 0.3s ease;
+        }
+        
+        .family-member-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        .family-member-card.selected {
+            border-color: var(--primary-teal);
+            background-color: rgba(26, 77, 77, 0.05);
+        }
+        
+        .step-indicator {
+            position: relative;
+        }
+        
+        .step-indicator::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: -50%;
+            width: 100%;
+            height: 2px;
+            background: #e5e7eb;
+            z-index: 0;
+        }
+        
+        .step-indicator.active::after {
+            background: var(--primary-teal);
+        }
+        
+        .step-indicator:last-child::after {
+            display: none;
+        }
+        
+        .step-circle {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .form-step {
+            display: none;
+        }
+        
+        .form-step.active {
+            display: block;
+        }
+        
+        .nav-link {
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--warm-gold);
+            transition: width 0.3s ease;
+        }
+        
+        .nav-link:hover::after {
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-200/50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-2">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-700 to-yellow-600 flex items-center justify-center">
+                        <span class="text-white font-bold text-sm">MC</span>
+                    </div>
+                    <span class="text-xl font-bold text-gray-900">MemoryChain</span>
+                </div>
+                
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="index.html" class="nav-link text-gray-600 hover:text-gray-900">Dashboard</a>
+                    <a href="upload.html" class="nav-link text-gray-900 font-medium">Upload</a>
+                    <a href="family.html" class="nav-link text-gray-600 hover:text-gray-900">Family</a>
+                    <a href="legacy.html" class="nav-link text-gray-600 hover:text-gray-900">Legacy</a>
+                    <a href="nft.html" class="nav-link text-gray-600 hover:text-gray-900">NFTs</a>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <div id="walletStatus" class="hidden">
+                        <span class="text-sm text-gray-600">Connected: </span>
+                        <span id="walletAddress" class="text-sm font-mono text-teal-700"></span>
+                    </div>
+                    <button id="connectWallet" class="bg-gradient-to-r from-teal-700 to-yellow-600 px-4 py-2 rounded-lg text-white font-medium hover:shadow-lg transition-all">
+                        Connect Wallet
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="pt-16 min-h-screen">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <!-- Header -->
+            <div class="text-center mb-12">
+                <h1 class="text-4xl font-bold text-gray-900 mb-4">Upload Memory</h1>
+                <p class="text-xl text-gray-600 max-w-2xl mx-auto">
+                    Securely encrypt and store your precious memories on the blockchain with military-grade security.
+                </p>
+            </div>
+            
+            <!-- Step Indicator -->
+            <div class="mb-12">
+                <div class="flex items-center justify-center space-x-8">
+                    <div class="step-indicator flex items-center space-x-2" data-step="1">
+                        <div class="step-circle w-10 h-10 bg-teal-700 text-white rounded-full flex items-center justify-center font-semibold">1</div>
+                        <span class="text-sm font-medium text-gray-900">Upload Files</span>
+                    </div>
+                    <div class="step-indicator flex items-center space-x-2" data-step="2">
+                        <div class="step-circle w-10 h-10 bg-gray-300 text-gray-600 rounded-full flex items-center justify-center font-semibold">2</div>
+                        <span class="text-sm font-medium text-gray-600">Set Access</span>
+                    </div>
+                    <div class="step-indicator flex items-center space-x-2" data-step="3">
+                        <div class="step-circle w-10 h-10 bg-gray-300 text-gray-600 rounded-full flex items-center justify-center font-semibold">3</div>
+                        <span class="text-sm font-medium text-gray-600">Encrypt & Store</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Upload Form -->
+            <div class="bg-white rounded-2xl shadow-xl p-8">
+                <!-- Step 1: File Upload -->
+                <div id="step1" class="form-step active">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-6">Select Your Memories</h2>
+                    
+                    <!-- Upload Zone -->
+                    <div id="uploadZone" class="upload-zone rounded-xl p-12 text-center mb-6">
+                        <div class="mb-4">
+                            <svg class="w-16 h-16 text-gray-400 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold text-gray-900 mb-2">Drop files here or click to browse</h3>
+                        <p class="text-gray-600 mb-4">Support for photos, videos, documents, and audio files up to 100MB</p>
+                        <button type="button" class="bg-teal-700 text-white px-6 py-3 rounded-lg hover:bg-teal-800 transition-colors">
+                            Choose Files
+                        </button>
+                    </div>
+                    
+                    <!-- Hidden file input -->
+                    <input type="file" id="fileInput" multiple accept="image/*,video/*,audio/*,.pdf,.doc,.docx" class="hidden">
+                    
+                    <!-- Selected Files -->
+                    <div id="selectedFiles" class="hidden">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Selected Files</h3>
+                        <div id="fileList" class="space-y-3 mb-6">
+                            <!-- Files will be listed here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Memory Details Form -->
+                    <div id="memoryDetails" class="hidden">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                            <div>
+                                <label for="memoryTitle" class="block text-sm font-medium text-gray-700 mb-2">Memory Title</label>
+                                <input type="text" id="memoryTitle" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent" placeholder="Give your memory a meaningful title">
+                            </div>
+                            <div>
+                                <label for="memoryDate" class="block text-sm font-medium text-gray-700 mb-2">Memory Date</label>
+                                <input type="date" id="memoryDate" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent">
+                            </div>
+                        </div>
+                        
+                        <div class="mb-6">
+                            <label for="memoryDescription" class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                            <textarea id="memoryDescription" rows="4" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent" placeholder="Describe this precious memory..."></textarea>
+                        </div>
+                        
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Tags</label>
+                            <div class="flex flex-wrap gap-2 mb-3" id="selectedTags">
+                                <!-- Selected tags will appear here -->
+                            </div>
+                            <div class="flex gap-2">
+                                <input type="text" id="tagInput" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent" placeholder="Add a tag">
+                                <button type="button" id="addTag" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors">Add</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-end">
+                        <button id="nextStep1" class="bg-teal-700 text-white px-8 py-3 rounded-lg hover:bg-teal-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                            Next: Set Access
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Step 2: Access Control -->
+                <div id="step2" class="form-step">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-6">Who Can Access This Memory?</h2>
+                    
+                    <div class="mb-8">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Select Family Members</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="familyMembersList">
+                            <!-- Family members will be loaded here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Advanced Options -->
+                    <div class="border-t pt-8">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Advanced Access Control</h3>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="flex items-center space-x-3 mb-4">
+                                    <input type="checkbox" id="timeLockEnabled" class="w-5 h-5 text-teal-700 rounded focus:ring-teal-500">
+                                    <span class="text-sm font-medium text-gray-700">Time-Locked Memory</span>
+                                </label>
+                                <div id="timeLockOptions" class="hidden ml-8 space-y-3">
+                                    <div>
+                                        <label for="unlockDate" class="block text-sm text-gray-600 mb-1">Unlock Date</label>
+                                        <input type="datetime-local" id="unlockDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="flex items-center space-x-3 mb-4">
+                                    <input type="checkbox" id="geoLockEnabled" class="w-5 h-5 text-teal-700 rounded focus:ring-teal-500">
+                                    <span class="text-sm font-medium text-gray-700">Location-Locked Memory</span>
+                                </label>
+                                <div id="geoLockOptions" class="hidden ml-8 space-y-3">
+                                    <div>
+                                        <label for="location" class="block text-sm text-gray-600 mb-1">Required Location</label>
+                                        <input type="text" id="location" placeholder="e.g., Family home coordinates" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-between mt-8">
+                        <button id="prevStep2" class="bg-gray-200 text-gray-700 px-8 py-3 rounded-lg hover:bg-gray-300 transition-colors">
+                            Previous
+                        </button>
+                        <button id="nextStep2" class="bg-teal-700 text-white px-8 py-3 rounded-lg hover:bg-teal-800 transition-colors">
+                            Next: Encrypt & Store
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Step 3: Encryption & Storage -->
+                <div id="step3" class="form-step">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-6">Encrypting & Storing Your Memory</h2>
+                    
+                    <!-- Encryption Progress -->
+                    <div id="encryptionProgress" class="mb-8">
+                        <div class="bg-gray-200 rounded-full h-4 mb-4">
+                            <div id="progressBar" class="progress-bar h-4 rounded-full" style="width: 0%"></div>
+                        </div>
+                        
+                        <div class="text-center mb-6">
+                            <div id="progressStatus" class="text-lg font-medium text-gray-900 mb-2">Initializing encryption...</div>
+                            <div id="progressDetails" class="text-sm text-gray-600">Preparing your files for secure storage</div>
+                        </div>
+                        
+                        <!-- Encryption Animation -->
+                        <div class="flex justify-center mb-6">
+                            <div class="encryption-animation">
+                                <svg class="w-16 h-16 text-teal-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Upload Details -->
+                    <div id="uploadDetails" class="hidden bg-gray-50 rounded-lg p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Upload Complete</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-sm text-gray-600">IPFS CID</p>
+                                <p id="ipfsCID" class="font-mono text-sm text-teal-700"></p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-600">Transaction ID</p>
+                                <p id="transactionID" class="font-mono text-sm text-teal-700"></p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-600">Encryption Key</p>
+                                <p id="encryptionKey" class="font-mono text-sm text-gray-500">••••••••••••••••</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-600">Storage Status</p>
+                                <p class="text-sm text-green-600">✓ Secured on Blockchain</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-center">
+                        <button id="finishUpload" class="hidden bg-teal-700 text-white px-8 py-3 rounded-lg hover:bg-teal-800 transition-colors">
+                            View in Dashboard
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center">
+                <div class="flex items-center justify-center space-x-2 mb-4">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-700 to-yellow-600 flex items-center justify-center">
+                        <span class="text-white font-bold text-sm">MC</span>
+                    </div>
+                    <span class="text-xl font-bold">MemoryChain</span>
+                </div>
+                <p class="text-gray-400 mb-4">Securing digital legacies for generations to come</p>
+                <p class="text-sm text-gray-500">© 2024 MemoryChain. Built on Algorand blockchain with love for families worldwide.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="main.js"></script>
+    <script>
+        class UploadManager {
+            constructor() {
+                this.currentStep = 1;
+                this.selectedFiles = [];
+                this.selectedFamilyMembers = [];
+                this.tags = [];
+                
+                this.init();
+            }
+            
+            init() {
+                this.setupEventListeners();
+                this.loadFamilyMembers();
+                this.updateStepIndicator();
+            }
+            
+            setupEventListeners() {
+                // File upload
+                document.getElementById('uploadZone').addEventListener('click', () => {
+                    document.getElementById('fileInput').click();
+                });
+                
+                document.getElementById('uploadZone').addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    document.getElementById('uploadZone').classList.add('dragover');
+                });
+                
+                document.getElementById('uploadZone').addEventListener('dragleave', () => {
+                    document.getElementById('uploadZone').classList.remove('dragover');
+                });
+                
+                document.getElementById('uploadZone').addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    document.getElementById('uploadZone').classList.remove('dragover');
+                    this.handleFiles(e.dataTransfer.files);
+                });
+                
+                document.getElementById('fileInput').addEventListener('change', (e) => {
+                    this.handleFiles(e.target.files);
+                });
+                
+                // Tags
+                document.getElementById('addTag').addEventListener('click', () => this.addTag());
+                document.getElementById('tagInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        this.addTag();
+                    }
+                });
+                
+                // Form validation
+                document.getElementById('memoryTitle').addEventListener('input', this.validateStep1.bind(this));
+                document.getElementById('memoryDate').addEventListener('input', this.validateStep1.bind(this));
+                document.getElementById('memoryDescription').addEventListener('input', this.validateStep1.bind(this));
+                
+                // Step navigation
+                document.getElementById('nextStep1').addEventListener('click', () => this.nextStep());
+                document.getElementById('prevStep2').addEventListener('click', () => this.prevStep());
+                document.getElementById('nextStep2').addEventListener('click', () => this.nextStep());
+                document.getElementById('finishUpload').addEventListener('click', () => {
+                    window.location.href = 'index.html';
+                });
+                
+                // Advanced options
+                document.getElementById('timeLockEnabled').addEventListener('change', (e) => {
+                    document.getElementById('timeLockOptions').classList.toggle('hidden', !e.target.checked);
+                });
+                
+                document.getElementById('geoLockEnabled').addEventListener('change', (e) => {
+                    document.getElementById('geoLockOptions').classList.toggle('hidden', !e.target.checked);
+                });
+            }
+            
+            handleFiles(files) {
+                this.selectedFiles = Array.from(files);
+                this.displaySelectedFiles();
+                this.showMemoryDetails();
+            }
+            
+            displaySelectedFiles() {
+                const container = document.getElementById('fileList');
+                container.innerHTML = '';
+                
+                this.selectedFiles.forEach((file, index) => {
+                    const fileItem = document.createElement('div');
+                    fileItem.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg';
+                    
+                    const fileSize = this.formatFileSize(file.size);
+                    const fileType = this.getFileTypeIcon(file.type);
+                    
+                    fileItem.innerHTML = `
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center">
+                                ${fileType}
+                            </div>
+                            <div>
+                                <p class="font-medium text-gray-900">${file.name}</p>
+                                <p class="text-sm text-gray-500">${fileSize}</p>
+                            </div>
+                        </div>
+                        <button type="button" onclick="uploadManager.removeFile(${index})" class="text-red-500 hover:text-red-700">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    `;
+                    
+                    container.appendChild(fileItem);
+                });
+                
+                document.getElementById('selectedFiles').classList.remove('hidden');
+            }
+            
+            getFileTypeIcon(mimeType) {
+                if (mimeType.startsWith('image/')) {
+                    return '<svg class="w-5 h-5 text-teal-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>';
+                } else if (mimeType.startsWith('video/')) {
+                    return '<svg class="w-5 h-5 text-teal-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>';
+                } else if (mimeType.startsWith('audio/')) {
+                    return '<svg class="w-5 h-5 text-teal-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>';
+                } else {
+                    return '<svg class="w-5 h-5 text-teal-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>';
+                }
+            }
+            
+            formatFileSize(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+            
+            showMemoryDetails() {
+                document.getElementById('memoryDetails').classList.remove('hidden');
+                this.validateStep1();
+            }
+            
+            validateStep1() {
+                const title = document.getElementById('memoryTitle').value.trim();
+                const date = document.getElementById('memoryDate').value;
+                const description = document.getElementById('memoryDescription').value.trim();
+                
+                const isValid = title && date && description && this.selectedFiles.length > 0;
+                document.getElementById('nextStep1').disabled = !isValid;
+            }
+            
+            addTag() {
+                const input = document.getElementById('tagInput');
+                const tag = input.value.trim();
+                
+                if (tag && !this.tags.includes(tag)) {
+                    this.tags.push(tag);
+                    this.renderTags();
+                    input.value = '';
+                }
+            }
+            
+            removeTag(index) {
+                this.tags.splice(index, 1);
+                this.renderTags();
+            }
+            
+            renderTags() {
+                const container = document.getElementById('selectedTags');
+                container.innerHTML = '';
+                
+                this.tags.forEach((tag, index) => {
+                    const tagElement = document.createElement('span');
+                    tagElement.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm bg-teal-100 text-teal-700';
+                    tagElement.innerHTML = `
+                        ${tag}
+                        <button type="button" onclick="uploadManager.removeTag(${index})" class="ml-2 text-teal-500 hover:text-teal-700">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    `;
+                    container.appendChild(tagElement);
+                });
+            }
+            
+            loadFamilyMembers() {
+                const familyMembers = [
+                    { id: 'father', name: 'John Smith', relationship: 'Father', avatar: '👨' },
+                    { id: 'mother', name: 'Sarah Smith', relationship: 'Mother', avatar: '👩' },
+                    { id: 'sister', name: 'Emma Smith', relationship: 'Sister', avatar: '👧' },
+                    { id: 'brother', name: 'Michael Smith', relationship: 'Brother', avatar: '👦' }
+                ];
+                
+                const container = document.getElementById('familyMembersList');
+                container.innerHTML = '';
+                
+                familyMembers.forEach(member => {
+                    const memberCard = document.createElement('div');
+                    memberCard.className = 'family-member-card p-4 border border-gray-200 rounded-lg cursor-pointer';
+                    memberCard.innerHTML = `
+                        <div class="flex items-center space-x-3">
+                            <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center text-2xl">
+                                ${member.avatar}
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-gray-900">${member.name}</h4>
+                                <p class="text-sm text-gray-500">${member.relationship}</p>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <label class="flex items-center space-x-2">
+                                <input type="checkbox" value="${member.id}" class="family-member-checkbox w-4 h-4 text-teal-700 rounded focus:ring-teal-500">
+                                <span class="text-sm text-gray-600">Grant access</span>
+                            </label>
+                        </div>
+                    `;
+                    
+                    memberCard.addEventListener('click', () => {
+                        const checkbox = memberCard.querySelector('.family-member-checkbox');
+                        checkbox.checked = !checkbox.checked;
+                        this.toggleFamilyMember(member.id, memberCard);
+                    });
+                    
+                    container.appendChild(memberCard);
+                });
+                
+                // Add checkbox event listeners
+                document.querySelectorAll('.family-member-checkbox').forEach(checkbox => {
+                    checkbox.addEventListener('change', (e) => {
+                        const memberCard = e.target.closest('.family-member-card');
+                        this.toggleFamilyMember(e.target.value, memberCard);
+                    });
+                });
+            }
+            
+            toggleFamilyMember(memberId, memberCard) {
+                const checkbox = memberCard.querySelector('.family-member-checkbox');
+                
+                if (checkbox.checked) {
+                    memberCard.classList.add('selected');
+                    if (!this.selectedFamilyMembers.includes(memberId)) {
+                        this.selectedFamilyMembers.push(memberId);
+                    }
+                } else {
+                    memberCard.classList.remove('selected');
+                    this.selectedFamilyMembers = this.selectedFamilyMembers.filter(id => id !== memberId);
+                }
+            }
+            
+            nextStep() {
+                if (this.currentStep < 3) {
+                    document.getElementById(`step${this.currentStep}`).classList.remove('active');
+                    this.currentStep++;
+                    document.getElementById(`step${this.currentStep}`).classList.add('active');
+                    this.updateStepIndicator();
+                    
+                    if (this.currentStep === 3) {
+                        this.startEncryptionProcess();
+                    }
+                }
+            }
+            
+            prevStep() {
+                if (this.currentStep > 1) {
+                    document.getElementById(`step${this.currentStep}`).classList.remove('active');
+                    this.currentStep--;
+                    document.getElementById(`step${this.currentStep}`).classList.add('active');
+                    this.updateStepIndicator();
+                }
+            }
+            
+            updateStepIndicator() {
+                for (let i = 1; i <= 3; i++) {
+                    const indicator = document.querySelector(`[data-step="${i}"]`);
+                    const circle = indicator.querySelector('.step-circle');
+                    const text = indicator.querySelector('span');
+                    
+                    if (i <= this.currentStep) {
+                        circle.classList.remove('bg-gray-300', 'text-gray-600');
+                        circle.classList.add('bg-teal-700', 'text-white');
+                        text.classList.remove('text-gray-600');
+                        text.classList.add('text-gray-900');
+                        indicator.classList.add('active');
+                    } else {
+                        circle.classList.remove('bg-teal-700', 'text-white');
+                        circle.classList.add('bg-gray-300', 'text-gray-600');
+                        text.classList.remove('text-gray-900');
+                        text.classList.add('text-gray-600');
+                        indicator.classList.remove('active');
+                    }
+                }
+            }
+            
+            async startEncryptionProcess() {
+                const steps = [
+                    { progress: 20, status: 'Generating AES-256 encryption key...', details: 'Creating secure encryption key' },
+                    { progress: 40, status: 'Encrypting files...', details: 'Applying military-grade encryption' },
+                    { progress: 60, status: 'Uploading to IPFS...', details: 'Storing on decentralized network' },
+                    { progress: 80, status: 'Recording on blockchain...', details: 'Creating permanent record' },
+                    { progress: 100, status: 'Complete!', details: 'Your memory is now secure' }
+                ];
+                
+                for (const step of steps) {
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                    this.updateProgress(step.progress, step.status, step.details);
+                }
+                
+                this.showUploadDetails();
+            }
+            
+            updateProgress(progress, status, details) {
+                document.getElementById('progressBar').style.width = progress + '%';
+                document.getElementById('progressStatus').textContent = status;
+                document.getElementById('progressDetails').textContent = details;
+            }
+            
+            showUploadDetails() {
+                document.getElementById('uploadDetails').classList.remove('hidden');
+                document.getElementById('ipfsCID').textContent = this.generateCID();
+                document.getElementById('transactionID').textContent = this.generateTransactionID();
+                document.getElementById('finishUpload').classList.remove('hidden');
+                
+                // Hide encryption animation
+                document.getElementById('encryptionProgress').style.display = 'none';
+            }
+            
+            generateCID() {
+                const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+                let cid = 'Qm';
+                for (let i = 0; i < 44; i++) {
+                    cid += chars.charAt(Math.floor(Math.random() * chars.length));
+                }
+                return cid;
+            }
+            
+            generateTransactionID() {
+                const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+                let txid = '';
+                for (let i = 0; i < 52; i++) {
+                    txid += chars.charAt(Math.floor(Math.random() * chars.length));
+                }
+                return txid;
+            }
+            
+            removeFile(index) {
+                this.selectedFiles.splice(index, 1);
+                if (this.selectedFiles.length === 0) {
+                    document.getElementById('selectedFiles').classList.add('hidden');
+                    document.getElementById('memoryDetails').classList.add('hidden');
+                } else {
+                    this.displaySelectedFiles();
+                }
+                this.validateStep1();
+            }
+        }
+        
+        // Initialize upload manager
+        let uploadManager;
+        document.addEventListener('DOMContentLoaded', () => {
+            uploadManager = new UploadManager();
+        });
+    </script>
+</body>
+</html>
