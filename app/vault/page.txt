@@ -1,0 +1,229 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { Grid3x3, Clock, Lock, Eye, Trash2, Plus, Share2, Users } from "lucide-react"
+import VaultStats from "@/components/vault/vault-stats"
+import VaultUploadModal from "@/components/vault/vault-upload-modal"
+import VaultAccessControl from "@/components/vault/vault-access-control"
+import { useWallet } from '@txnlab/use-wallet-react'
+import { AlgorandService } from '@/lib/algorand'
+
+export default function VaultPage() {
+  const { activeAccount } = useWallet()
+  const [viewMode, setViewMode] = useState<"grid" | "timeline">("grid")
+  const [showUploadModal, setShowUploadModal] = useState(false)
+  const [showAccessControl, setShowAccessControl] = useState(false)
+  const [memories, setMemories] = useState([
+    { id: 1, name: "Summer 2024", date: "2024-08-15", encrypted: true, type: "image", size: "2.4 MB" },
+    { id: 2, name: "Family Reunion", date: "2024-07-20", encrypted: true, type: "video", size: "156 MB" },
+    { id: 3, name: "Birthday Memories", date: "2024-06-10", encrypted: true, type: "image", size: "1.8 MB" },
+    { id: 4, name: "Vacation Photos", date: "2024-05-15", encrypted: true, type: "image", size: "3.2 MB" },
+    { id: 5, name: "Wedding Day", date: "2024-04-20", encrypted: true, type: "video", size: "245 MB" },
+    { id: 6, name: "Holiday Moments", date: "2024-03-25", encrypted: true, type: "image", size: "2.1 MB" },
+  ])
+
+  useEffect(() => {
+    const loadMemories = async () => {
+      if (!activeAccount) return
+      
+      try {
+        const fetchedMemories = await AlgorandService.getMemoriesForUser(activeAccount.address)
+        
+        // Convert blockchain data to your existing format
+        const formattedMemories = fetchedMemories.map((m) => ({
+          id: Number(m.id ?? m.timestamp),
+          name: m.name,
+          date: new Date(m.timestamp).toISOString().split('T')[0],
+          encrypted: true,
+          type: m.fileType,
+          size: (m.fileSize / (1024 * 1024)).toFixed(1) + ' MB',
+          cid: m.cid, // Keep for later decrypt
+          encryptedAESKey: m.encryptedAESKey,
+          iv: m.iv,
+        }))
+        
+        setMemories(formattedMemories)
+      } catch (error) {
+        console.error('Error loading memories:', error)
+      }
+    }
+
+    loadMemories()
+  }, [activeAccount])
+
+  // ADD THIS FUNCTION (refreshes memories after upload)
+  const handleUploadSuccess = () => {
+    // Reload memories after successful upload
+    if (activeAccount) {
+      AlgorandService.getMemoriesForUser(activeAccount.address).then((fetchedMemories) => {
+        const formattedMemories = fetchedMemories.map((m) => ({
+          id: Number(m.id ?? m.timestamp),
+          name: m.name,
+          date: new Date(m.timestamp).toISOString().split('T')[0],
+          encrypted: true,
+          type: m.fileType,
+          size: (m.fileSize / (1024 * 1024)).toFixed(1) + ' MB',
+          cid: m.cid,
+          encryptedAESKey: m.encryptedAESKey,
+          iv: m.iv,
+        }))
+        setMemories(formattedMemories)
+      })
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 mb-8">
+          <div>
+            <h1 className="text-4xl sm:text-5xl font-bold mb-2">Your Vault</h1>
+            <p className="text-muted-foreground">Manage your encrypted memories securely</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={() => setShowAccessControl(true)}
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 border border-border text-foreground font-semibold rounded-lg hover:bg-secondary/50 transition-all"
+            >
+              <Users size={20} />
+              Family Access
+            </button>
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 transition-all shadow-lg"
+            >
+              <Plus size={20} />
+              Upload Memory
+            </button>
+          </div>
+        </div>
+
+        {/* Stats Section */}
+        <VaultStats memories={memories} />
+
+        {/* Controls */}
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-8 mt-8">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setViewMode("grid")}
+              className={`p-3 rounded-lg transition-all ${
+                viewMode === "grid"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-secondary text-foreground hover:bg-secondary/80"
+              }`}
+            >
+              <Grid3x3 size={20} />
+            </button>
+            <button
+              onClick={() => setViewMode("timeline")}
+              className={`p-3 rounded-lg transition-all ${
+                viewMode === "timeline"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-secondary text-foreground hover:bg-secondary/80"
+              }`}
+            >
+              <Clock size={20} />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Lock size={16} />
+            <span>All memories encrypted with AES-256</span>
+          </div>
+        </div>
+
+        {/* Grid View */}
+        {viewMode === "grid" && (
+          <div className="grid md:grid-cols-3 gap-6">
+            {memories.map((memory) => (
+              <div
+                key={memory.id}
+                className="group relative bg-card border border-border rounded-xl overflow-hidden hover:border-primary/50 transition-all hover:shadow-lg"
+              >
+                {/* Placeholder */}
+                <div className="aspect-square bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5" />
+                  <div className="relative flex flex-col items-center gap-2">
+                    <Lock className="text-primary/40" size={48} />
+                    <span className="text-sm text-muted-foreground">Encrypted</span>
+                  </div>
+                </div>
+
+                {/* Info */}
+                <div className="p-4">
+                  <h3 className="font-semibold mb-1 truncate">{memory.name}</h3>
+                  <p className="text-sm text-muted-foreground mb-2">{memory.date}</p>
+                  <p className="text-xs text-muted-foreground mb-4">{memory.size}</p>
+
+                  {/* Actions */}
+                  <div className="flex gap-2">
+                    <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors text-sm font-medium">
+                      <Eye size={16} />
+                      Decrypt
+                    </button>
+                    <button className="px-3 py-2 bg-destructive/10 text-destructive rounded-lg hover:bg-destructive/20 transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Timeline View */}
+        {viewMode === "timeline" && (
+          <div className="space-y-8">
+            {memories.map((memory, index) => (
+              <div key={memory.id} className="flex gap-6">
+                {/* Timeline Line */}
+                <div className="flex flex-col items-center">
+                  <div className="w-4 h-4 rounded-full bg-primary border-4 border-background" />
+                  {index < memories.length - 1 && (
+                    <div className="w-1 h-24 bg-gradient-to-b from-primary/50 to-primary/10 mt-2" />
+                  )}
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 pb-8">
+                  <div className="bg-card border border-border rounded-xl p-6 hover:border-primary/50 transition-all">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h3 className="text-xl font-bold">{memory.name}</h3>
+                        <p className="text-sm text-muted-foreground mt-1">{memory.date}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{memory.size}</p>
+                      </div>
+                      <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-full">
+                        <Lock size={14} className="text-primary" />
+                        <span className="text-xs font-medium text-primary">Encrypted</span>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium">
+                        <Eye size={16} />
+                        Decrypt & View
+                      </button>
+                      <button className="px-4 py-2 border border-border rounded-lg hover:bg-secondary/50 transition-colors">
+                        <Share2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Modals */}
+      {showUploadModal && (
+        <VaultUploadModal
+          {...({ onClose: () => setShowUploadModal(false), onUploadSuccess: handleUploadSuccess } as any)}
+        />
+      )}
+      {showAccessControl && <VaultAccessControl onClose={() => setShowAccessControl(false)} />}
+    </main>
+  )
+}
