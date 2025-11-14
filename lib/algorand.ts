@@ -1,3 +1,4 @@
+// lib/algorand.ts
 import algosdk from 'algosdk'
 import { MemoryMetadata } from './types'
 
@@ -57,6 +58,29 @@ export class AlgorandService {
   }
 
   /**
+   * Helper: decode base64 note to UTF-8 string in both Node and browser envs
+   */
+  private static base64ToString(b64: string): string {
+    try {
+      if (typeof Buffer !== 'undefined') {
+        return Buffer.from(b64, 'base64').toString('utf-8')
+      }
+      // browser fallback
+      const binary = atob(b64)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+      return new TextDecoder().decode(bytes)
+    } catch (e) {
+      // last resort: return atob result (may be raw)
+      try {
+        return atob(b64)
+      } catch {
+        return ''
+      }
+    }
+  }
+
+  /**
    * Retrieve all memories for a user from blockchain
    */
   static async getMemoriesForUser(address: string): Promise<MemoryMetadata[]> {
@@ -77,19 +101,21 @@ export class AlgorandService {
       const memories: MemoryMetadata[] = []
 
       for (const txn of txns.transactions) {
-        // Only process transactions with notes
+        // Only process transactions with notes and sent to self
         if (txn.note && txn.sender === txn.paymentTransaction?.receiver) {
           try {
             let noteText: string
             if (typeof txn.note === 'string') {
-              // note is base64-encoded string (as returned by some indexer responses)
-              noteText = Buffer.from(txn.note, 'base64').toString('utf-8')
+              // note is base64-encoded string
+              noteText = AlgorandService.base64ToString(txn.note)
             } else {
               // note is already a Uint8Array (decoded bytes)
               noteText = new TextDecoder().decode(txn.note as Uint8Array)
             }
+
             const metadata = JSON.parse(noteText)
-            
+
+            // Spread parsed metadata into the memory object
             memories.push({
               id: txn.id,
               owner: address,
@@ -97,16 +123,30 @@ export class AlgorandService {
               ...metadata,
             })
           } catch (e) {
-            // Skip invalid notes
+            // Skip invalid/parse-failing notes
             continue
           }
         }
       }
 
-      return memories.sort((a, b) => b.timestamp - a.timestamp)
+      // If metadata may not contain timestamp, handle gracefully
+      return memories.sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))
     } catch (error) {
       console.error('Error fetching memories:', error)
       return []
     }
+  }
+}
+
+/**
+ * Convenience wrapper used by server API route
+ * (so route can import { getMemoriesForOwner } from '@/lib/algorand')
+ */
+export async function getMemoriesForOwner(ownerAddress: string): Promise<any[]> {
+  try {
+    return await AlgorandService.getMemoriesForUser(ownerAddress)
+  } catch (e) {
+    console.error('getMemoriesForOwner error:', e)
+    return []
   }
 }
