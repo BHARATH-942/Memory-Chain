@@ -7,6 +7,10 @@ import { IPFSService } from '@/lib/ipfs'
 import { AlgorandService } from '@/lib/algorand'
 import { useWallet } from '@txnlab/use-wallet-react'
 
+import nacl from 'tweetnacl'
+import { decodeBase64, encodeBase64 } from 'tweetnacl-util'
+import ed2curve from 'ed2curve'
+
 interface VaultUploadModalProps {
   onCloseAction: () => void
   onUploadSuccessAction?: () => void
@@ -39,7 +43,10 @@ export default function VaultUploadModal({ onCloseAction, onUploadSuccessAction 
 
       // Step 1: Generate AES key
       setProgress('Generating encryption key...')
-      const aesKey = EncryptionService.generateAESKey()
+      const aesKey = EncryptionService.generateAESKey() // expected Uint8Array or ArrayBuffer
+
+      // Normalize AES key to Uint8Array
+      const aesKeyU8 = aesKey instanceof Uint8Array ? aesKey : new Uint8Array(aesKey as ArrayBuffer)
 
       // Step 2: Read file
       setProgress('Reading file...')
@@ -53,27 +60,71 @@ export default function VaultUploadModal({ onCloseAction, onUploadSuccessAction 
       setProgress('Uploading to IPFS...')
       const cid = await IPFSService.uploadToIPFS(encrypted)
 
-      // Step 5: Encrypt AES key with owner's public key
-      setProgress('Encrypting key...')
-      const ownerPublicKey = EncryptionService.getPublicKeyFromAddress(activeAccount.address)
-      
-      // For self-encryption, we need a keypair
-      // In production, wallet would handle this, but for demo we'll store the key differently
-      // For now, we'll store the AES key encrypted with a simple method
-      const encryptedAESKey = EncryptionService.bytesToBase64(aesKey) // Simplified for demo
+      // Step 5: Encrypt AES key for recipient(s)
+      setProgress('Encrypting key for recipient(s)...')
+
+      // OWNER (uploader) copy - simplified demo-friendly: store AES key base64 so the uploader can decrypt locally.
+      // In production you would not store raw AES key; instead you'd encrypt it with recipient(s) public keys and let wallets handle decryption.
+      const encryptedAESKeyForOwner = EncryptionService.bytesToBase64(aesKeyU8)
+
+      // RECIPIENT example (ephemeral box encryption)
+      // If you want to encrypt AES key for another address (recipientAddress), replace `recipientAddress`
+      // with the address of the recipient. For now using owner address as example (you can change).
+      const recipientAddress = activeAccount.address // change to actual recipient address if sharing to others
+      let encryptedAESKeyForRecipient: string | null = null
+      let encryptionNonce: string | null = null
+      let senderEphemeralPublicKey: string | null = null
+
+      try {
+        // Get recipient public key (assumed base64-encoded Ed25519 public key OR already raw bytes)
+        const ownerPubBase64 = EncryptionService.getPublicKeyFromAddress(recipientAddress)
+        // ownerPubBase64 may be a base64 string or already a Uint8Array; normalize to Uint8Array
+        let ownerEdPub: Uint8Array
+        if (typeof ownerPubBase64 === 'string') {
+          ownerEdPub = decodeBase64(ownerPubBase64)
+        } else {
+          ownerEdPub = ownerPubBase64 instanceof Uint8Array ? ownerPubBase64 : new Uint8Array(ownerPubBase64 as ArrayBuffer)
+        }
+        // Convert Ed25519 public key to Curve25519 (required by nacl.box)
+        const ownerCurvePub = ed2curve.convertPublicKey(ownerEdPub) || ownerEdPub // if convert fails, try as-is
+
+        // Generate ephemeral keypair for sender (curve25519 keypair suitable for nacl.box)
+        const ephemeral = nacl.box.keyPair()
+
+        // Encrypt AES key bytes using nacl.box
+        const nonceBytes = nacl.randomBytes(nacl.box.nonceLength)
+        const cipher = nacl.box(aesKeyU8, nonceBytes, ownerCurvePub, ephemeral.secretKey)
+
+        encryptedAESKeyForRecipient = encodeBase64(cipher)
+        encryptionNonce = encodeBase64(nonceBytes)
+        senderEphemeralPublicKey = encodeBase64(ephemeral.publicKey)
+      } catch (convErr) {
+        // If conversion/encryption fails, we still continue and keep owner copy.
+        console.warn('Recipient encryption failed — continuing with owner copy only:', convErr)
+      }
 
       // Step 6: Store metadata on Algorand
       setProgress('Storing on blockchain...')
-      const metadata = {
+      const metadata: any = {
         cid,
         name: memoryName,
-        encryptedAESKey,
+        // Keep owner copy for demo/local decryption
+        encryptedAESKey: encryptedAESKeyForOwner,
         iv: EncryptionService.bytesToBase64(nonce),
         owner: activeAccount.address,
         timestamp: Date.now(),
         fileType: file.type.startsWith('image/') ? 'image' : 'video',
         fileSize: file.size,
         encrypted: true,
+      }
+
+      if (encryptedAESKeyForRecipient && encryptionNonce && senderEphemeralPublicKey) {
+        metadata.encryptedAESKeyForRecipient = encryptedAESKeyForRecipient
+        metadata.encryptionNonce = encryptionNonce
+        metadata.senderEphemeralPublicKey = senderEphemeralPublicKey
+        metadata.encryptedAESKey_box = encryptedAESKeyForRecipient
+        metadata.encryptionNonce_box = encryptionNonce
+        metadata.senderEphemeralPublicKey_box = senderEphemeralPublicKey
       }
 
       const txId = await AlgorandService.storeMemory(
