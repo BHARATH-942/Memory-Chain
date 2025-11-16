@@ -168,12 +168,11 @@ We actually dont have a smart contract the process is done by a transaction code
 
 ### Verify on TestNet
 
-Use [https://testnet.explorer.perawallet.app/] to view and verify transactions:
+Use [https://testnet.explorer.perawallet.app/] to view and verify an exaple transactions:
 
-```bash
 # Example transaction
-https://testnet.explorer.perawallet.app/tx/D2NFNSDUGX2GK5WBUM5ECGG7Q5J7JVVJPQJVD3HWIA6IKRHATA3A/
-```
+[https://testnet.explorer.perawallet.app/tx/D2NFNSDUGX2GK5WBUM5ECGG7Q5J7JVVJPQJVD3HWIA6IKRHATA3A/](https://testnet.explorer.perawallet.app/tx/D2NFNSDUGX2GK5WBUM5ECGG7Q5J7JVVJPQJVD3HWIA6IKRHATA3A/)
+
 
 ---
 
