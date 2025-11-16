@@ -202,23 +202,6 @@ Use [https://testnet.explorer.perawallet.app/] to view and verify an exaple tran
 
 ---
 
----
-
-## 🧪 Testing
-
-### Run Tests
-```bash
-# Unit tests
-npm test
-
-# Smart contract tests
-pytest tests/
-
-# E2E tests
-npm run test:e2e
-```
-
-
 ## 🤝 Contributing
 
 We welcome contributions! Please follow these steps:
